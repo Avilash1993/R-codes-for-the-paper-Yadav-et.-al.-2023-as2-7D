@@ -1,0 +1,126 @@
+# This code was used for making growth rate plot in Supplementary Figure S3E
+
+# Loading the required packages
+
+library(readxl)
+library(tidyverse)
+library(dplyr)
+library(writexl)
+library(ggthemes)
+
+# Setting the file path
+file_path <- "C:\\Users\\askin\\OneDrive\\Documents\\Adrienne_Lab_Postdoc_Data\\vos3_paper_writing\\Supplementary codes and tables\\Data for plots\\Figure S3\\Combined_data_GrowthRate.xlsx"
+
+# Import data from Excel
+data <- read_excel(file_path, sheet = "Sheet1")
+
+# Prepare data for plotting
+Growthdata <- data %>%
+  mutate(Genotype = factor(Genotype, levels = c("WT", "as2-7D")),
+         Side = factor(Side, levels = c("Outer", "Inner")),
+         Replicate = factor(Replicate))
+
+# Define colors for genotypes
+genotype_colors <- c("WT" = "black", "as2-7D" = "red")
+
+# Calculating p value
+
+# Function to format p-values as star annotations
+p_to_star <- function(p){
+  ifelse(p > 0.05, "ns",
+         ifelse(p <= 0.05 & p > 0.001, "*",
+                ifelse(p <= 0.001 & p > 0.0001, "**",
+                       "***")))
+}
+
+# Calculate p-values for comparison between sides for each genotype
+genotype_p_values <- Growthdata %>%
+  split(.$Genotype) %>%
+  lapply(function(df) {
+    genotype_p_values <- pairwise.t.test(df$Growth_Rate, df$Side, p.adjust.method = "bonferroni")$p.value
+    star_annotations <- apply(genotype_p_values, c(1, 2), p_to_star)
+    list(genotype_p_values = genotype_p_values, star_annotations = star_annotations)
+    
+  })
+genotype_p_values_df <- as.data.frame(genotype_p_values)
+  
+# Calculate p-values for each side for WT vs as2-7D
+Side_p_values <- Growthdata %>%
+  split(.$Side) %>%
+  lapply(function(df) {
+    Side_p_values <- pairwise.t.test(df$Growth_Rate, df$Genotype, p.adjust.method = "bonferroni")$p.value
+    star_annotations <- apply(Side_p_values, c(1, 2), p_to_star)
+    list(Side_p_values = Side_p_values, star_annotations = star_annotations)
+    
+  })
+Side_p_values_df <- as.data.frame(Side_p_values)
+
+#print p values for comparison between sides for each genotype
+print(genotype_p_values_df)
+
+#print p values for comparison between genotypes for each side
+print(Side_p_values_df)
+
+# Calculate the mean, median, and standard deviation for the datasets
+summary <- Growthdata %>%
+  group_by(Genotype, Side) %>%
+  summarise(
+    Mean = mean(Growth_Rate, na.rm = TRUE),
+    Median = median(Growth_Rate, na.rm = TRUE),
+    SD = sd(Growth_Rate, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Write the data to an Excel file
+write_xlsx(summary, "Growth_Rate_Ab_ad_Summary.xlsx")
+
+# Making the plot
+plot <- ggplot(Growthdata, aes(x = Genotype, y = Growth_Rate, color = Genotype)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, fill = NA) + 
+  geom_jitter(size = 0.9, position = position_jitterdodge(dodge.width = 1)) +
+  facet_wrap(~ Side, ncol = 2) +
+  scale_color_manual(values = genotype_colors) +
+  theme_minimal() +
+  theme(plot.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(face = "bold", size = 12),
+        axis.title = element_text(size = 14, face = "bold"),
+        axis.text = element_text(size = 12),
+        legend.position = "none") +
+  labs(x = "Side", y = "Growth Rate")
+# Save the plot as a high-quality PNG image
+ggsave("Growth_Rate_dotplot_abaxial_vs_adaxial.png", plot, width = 10, height = 6, dpi = 600)
+
+# Display the plot in the R console
+print(plot)
+
+
+#Same plot without labels to put in the figure
+
+plot <- ggplot(Growthdata, aes(x = Genotype, y = Growth_Rate, color = Genotype)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.5, fill = NA) + 
+  geom_jitter(size = 0.9, position = position_jitterdodge(dodge.width = 1)) +
+  facet_wrap(~ Side, ncol = 2) +
+  scale_color_manual(values = genotype_colors) +
+  theme_minimal() + 
+  theme(plot.background = element_rect(fill = "white", color = "white"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_blank(),
+        axis.title = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = "none")
+  labs(x = NULL, y = NULL)
+# Save the plot as a high-quality PNG image
+ggsave("Growth_Rate_dotplot_abaxial_vs_adaxial_without_labels.png", plot, width = 10, height = 6, dpi = 600)
+print(plot)
+
+
