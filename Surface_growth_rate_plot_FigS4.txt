@@ -1,0 +1,82 @@
+
+# This code was used to make the surface growth rate plot in Supplementary Figure S4E
+
+# Load the required packages
+
+library(multcomp)
+library(stringr)
+library(writexl)
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(multcompView)
+
+
+# Set the file path
+file_path <- "C:\\Users\\askin\\OneDrive\\Documents\\Adrienne_Lab_Postdoc_Data\\vos3_paper_writing\\Supplementary codes and tables\\Data for plots\\Figure S4\\WT_and_as2-7D_surface_growth_rate.xlsx"
+
+# Import data from Excel
+df <- read_excel(file_path,sheet = 1)
+
+
+# Define factors and orders of the plot
+df$Timepoint <- factor(df$Timepoint, levels = c("0-24 hrs", "24-48 hrs"))
+df$Genotype <- factor(df$Genotype, levels = c("WT", "as2-7D"))
+df$Side <- factor(df$Side, levels = c("Outer", "Inner"))
+
+# Create a combined column
+df$Genotype_Timepoint_Side <- interaction(df$Genotype, df$Timepoint, df$Side, sep = "_")
+
+# Rearrange levels of the combined factor
+df$Genotype_Timepoint_Side <- factor(df$Genotype_Timepoint_Side, levels = c("WT_0-24 hrs_Outer", "as2-7D_0-24 hrs_Outer", "WT_24-48 hrs_Outer", "as2-7D_24-48 hrs_Outer", "WT_0-24 hrs_Inner", "as2-7D_0-24 hrs_Inner", "WT_24-48 hrs_Inner", "as2-7D_24-48 hrs_Inner"))
+
+# Perform ANOVA and Tukey's HSD test
+anova_model <- aov(Growth_Rate ~ Genotype_Timepoint_Side, data = df)
+tukey_test <- glht(anova_model, linfct = mcp(Genotype_Timepoint_Side = "Tukey"))
+
+# Extract p-values and assign significance levels
+tukey_result <- cld(tukey_test, level = 0.05)
+
+# Create a new dataframe for the labels
+df_labels <- df %>% 
+  group_by(Genotype_Timepoint_Side) %>%
+  summarise(mean_val = mean(Growth_Rate, na.rm = TRUE), 
+            max_val = max(Growth_Rate, na.rm = TRUE)) %>%
+  mutate(Signif = tukey_result$mcletters$Letters[match(Genotype_Timepoint_Side, names(tukey_result$mcletters$Letters))])  
+
+# Define the colors
+custom_colors <- c("WT" = "black", "as2-7D" = "red")
+
+# Create the Genotype column for colors
+df$Genotype <- str_extract(df$Genotype_Timepoint_Side, "WT|as2-7D")
+
+# Making the plot
+plot <-ggplot(data = df, aes(x = Genotype_Timepoint_Side, y = Growth_Rate)) +
+  geom_dotplot(aes(fill = Genotype), binaxis='y', stackdir='center', dotsize = 1.6, binwidth = 0.08) +
+  scale_fill_manual(values = custom_colors) + theme_minimal() +
+  theme(plot.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(face = "bold", size = 12),
+        axis.title = element_text(size = 14, face = "bold"),
+        axis.text = element_text(size = 12),
+        legend.position = "none") +
+   stat_summary(aes(color = Genotype), fun=mean, geom = "crossbar", size=0.4) + 
+  scale_color_manual(values = custom_colors) +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + theme(axis.text.x = element_text(size = 6)) + ylim(0,4.5) # display letters at the same height
+# Save the plot as a high-quality PNG image
+ggsave("Surface growth rate plot.png", plot, width = 10, height = 6, dpi = 600)
+
+# Display the plot in the R console
+print(plot)
+
+
+
+
+
+
+
+
